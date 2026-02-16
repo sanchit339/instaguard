@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">InstaGuard</string>
+    <string name="accessibility_service_label">InstaGuard Watchdog</string>
+    <string name="accessibility_service_desc">Tracks Instagram foreground usage and blocks it when your budget runs out.</string>
+</resources>

@@ -1,0 +1,6 @@
+<resources>
+    <color name="ig_green">#2E7D32</color>
+    <color name="ig_red">#B71C1C</color>
+    <color name="ig_bg">#F4F6F8</color>
+    <color name="ig_surface">#FFFFFF</color>
+</resources>

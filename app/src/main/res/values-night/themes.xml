@@ -1,0 +1,4 @@
+<resources>
+    <style name="Theme.InstaGuard" parent="Theme.MaterialComponents.DayNight.NoActionBar" />
+    <style name="Theme.InstaGuard.Blocker" parent="Theme.MaterialComponents.DayNight.NoActionBar" />
+</resources>
