@@ -1,5 +1,9 @@
 # InstaGuard
 
+<p align="center">
+  <img src="Image%20for%20readme.png" alt="InstaGuard banner" width="100%" />
+</p>
+
 InstaGuard is an Android app that limits Instagram usage with a strict time budget and automatic carry-forward.
 
 ## Why this exists
