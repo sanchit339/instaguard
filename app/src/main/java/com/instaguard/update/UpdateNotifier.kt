@@ -7,24 +7,33 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import com.instaguard.MainActivity
 import com.instaguard.R
 
 object UpdateNotifier {
     private const val CHANNEL_ID = "instaguard_updates"
     private const val CHANNEL_NAME = "InstaGuard Updates"
     private const val NOTIFICATION_ID = 1010
+    private const val PREFS_NAME = "update_notifier"
+    private const val KEY_LAST_NOTIFIED_TAG = "last_notified_tag"
 
-    fun notifyUpdateAvailable(context: Context, latestTag: String, releaseUrl: String) {
+    fun notifyUpdateAvailable(context: Context, latestTag: String, @Suppress("UNUSED_PARAMETER") releaseUrl: String) {
         if (!canPostNotifications(context)) return
+        if (latestTag.isBlank()) return
+
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val lastTag = prefs.getString(KEY_LAST_NOTIFIED_TAG, null)
+        if (lastTag == latestTag) return
 
         createChannelIfNeeded(context)
 
-        val openReleaseIntent = Intent(Intent.ACTION_VIEW, Uri.parse(releaseUrl))
+        val openReleaseIntent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
         val pendingIntent = PendingIntent.getActivity(
             context,
             0,
@@ -46,6 +55,7 @@ object UpdateNotifier {
             .build()
 
         NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, notification)
+        prefs.edit().putString(KEY_LAST_NOTIFIED_TAG, latestTag).apply()
     }
 
     fun canPostNotifications(context: Context): Boolean {

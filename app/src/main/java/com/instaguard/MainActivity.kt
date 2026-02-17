@@ -4,7 +4,6 @@ import android.Manifest
 import android.app.AppOpsManager
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -65,7 +64,7 @@ private fun AppHome() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val repository = remember { BudgetRepository(context.applicationContext) }
-    val appVersion = remember { getAppVersionName(context) }
+    val appVersion = BuildConfig.VERSION_NAME
 
     var balanceMs by remember { mutableLongStateOf(0L) }
     var allowanceMs by remember { mutableLongStateOf(0L) }
@@ -102,7 +101,7 @@ private fun AppHome() {
         isCheckingUpdates = false
         result.onSuccess {
             updateInfo = it
-            if (it.isUpdateAvailable && notificationsEnabled && it.releaseUrl.isNotBlank()) {
+            if (it.isUpdateAvailable && notificationsEnabled) {
                 UpdateNotifier.notifyUpdateAvailable(context, it.latestTag, it.releaseUrl)
             }
         }.onFailure {
@@ -305,21 +304,4 @@ private fun hasUsageAccess(context: Context): Boolean {
         )
     }
     return mode == AppOpsManager.MODE_ALLOWED
-}
-
-private fun getAppVersionName(context: Context): String {
-    return try {
-        val packageInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            context.packageManager.getPackageInfo(
-                context.packageName,
-                PackageManager.PackageInfoFlags.of(0)
-            )
-        } else {
-            @Suppress("DEPRECATION")
-            context.packageManager.getPackageInfo(context.packageName, 0)
-        }
-        packageInfo.versionName ?: "unknown"
-    } catch (_: Exception) {
-        "unknown"
-    }
 }
