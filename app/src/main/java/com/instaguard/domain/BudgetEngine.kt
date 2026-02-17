@@ -33,6 +33,7 @@ object BudgetEngine {
         }
 
         var current = snapshot
+        var changed = false
         while (nowEpochMs >= current.currentHourStartEpochMs + HOUR_MS) {
             val hourStart = current.currentHourStartEpochMs
             val hourIsQuiet = isQuietHour(hourStart, zoneId)
@@ -49,9 +50,10 @@ object BudgetEngine {
                 currentHourStartEpochMs = nextHourStart,
                 hourAllowanceMs = nextAllowance
             )
+            changed = true
         }
 
-        return current.copy(lastUpdatedEpochMs = nowEpochMs)
+        return if (changed) current else snapshot
     }
 
     fun consume(snapshot: BudgetSnapshot, consumedMs: Long, nowEpochMs: Long): BudgetSnapshot {

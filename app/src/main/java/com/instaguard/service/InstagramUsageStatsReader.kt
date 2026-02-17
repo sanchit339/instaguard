@@ -19,7 +19,8 @@ class InstagramUsageStatsReader(context: Context) {
     }
 
     private fun queryForegroundMsUnsafe(startEpochMs: Long, endEpochMs: Long, targetPackage: String): Long {
-        val events = usageStatsManager.queryEvents(startEpochMs, endEpochMs)
+        val queryStart = maxOf(0L, startEpochMs - LOOKBACK_MS)
+        val events = usageStatsManager.queryEvents(queryStart, endEpochMs)
         val event = UsageEvents.Event()
 
         var foregroundSince: Long? = null
@@ -30,26 +31,48 @@ class InstagramUsageStatsReader(context: Context) {
             if (event.packageName != targetPackage) {
                 continue
             }
-            when (event.eventType) {
-                UsageEvents.Event.ACTIVITY_RESUMED -> {
+
+            if (isForegroundEvent(event.eventType)) {
+                if (foregroundSince == null) {
                     foregroundSince = event.timeStamp
                 }
+                continue
+            }
 
-                UsageEvents.Event.ACTIVITY_PAUSED -> {
-                    val startedAt = foregroundSince
-                    if (startedAt != null && event.timeStamp > startedAt) {
-                        totalForegroundMs += event.timeStamp - startedAt
-                    }
-                    foregroundSince = null
+            if (isBackgroundEvent(event.eventType)) {
+                val startedAt = foregroundSince
+                if (startedAt != null && event.timeStamp > startedAt) {
+                    totalForegroundMs += overlapMs(startedAt, event.timeStamp, startEpochMs, endEpochMs)
                 }
+                foregroundSince = null
             }
         }
 
         val openSessionStart = foregroundSince
         if (openSessionStart != null && endEpochMs > openSessionStart) {
-            totalForegroundMs += endEpochMs - openSessionStart
+            totalForegroundMs += overlapMs(openSessionStart, endEpochMs, startEpochMs, endEpochMs)
         }
 
         return totalForegroundMs
+    }
+
+    private fun isForegroundEvent(eventType: Int): Boolean {
+        return eventType == UsageEvents.Event.ACTIVITY_RESUMED ||
+            eventType == UsageEvents.Event.MOVE_TO_FOREGROUND
+    }
+
+    private fun isBackgroundEvent(eventType: Int): Boolean {
+        return eventType == UsageEvents.Event.ACTIVITY_PAUSED ||
+            eventType == UsageEvents.Event.MOVE_TO_BACKGROUND
+    }
+
+    private fun overlapMs(start: Long, end: Long, windowStart: Long, windowEnd: Long): Long {
+        val boundedStart = maxOf(start, windowStart)
+        val boundedEnd = minOf(end, windowEnd)
+        return maxOf(0L, boundedEnd - boundedStart)
+    }
+
+    private companion object {
+        const val LOOKBACK_MS = 30 * 60 * 1000L
     }
 }

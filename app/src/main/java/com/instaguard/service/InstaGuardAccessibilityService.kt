@@ -33,10 +33,9 @@ class InstaGuardAccessibilityService : AccessibilityService() {
             val now = System.currentTimeMillis()
 
             scope.launch {
-                processTick(now)
+                val nextDelayMs = runCatching { processTick(now) }.getOrDefault(IDLE_TICK_MS)
+                scheduleNextTick(nextDelayMs)
             }
-
-            handler.postDelayed(this, TICK_MS)
         }
     }
 
@@ -76,7 +75,11 @@ class InstaGuardAccessibilityService : AccessibilityService() {
         super.onDestroy()
     }
 
-    private suspend fun processTick(nowEpochMs: Long) {
+    private fun scheduleNextTick(delayMs: Long) {
+        handler.postDelayed(tickRunnable, delayMs)
+    }
+
+    private suspend fun processTick(nowEpochMs: Long): Long {
         val tickDeltaMs = max(0L, nowEpochMs - lastTickEpochMs)
         lastTickEpochMs = nowEpochMs
 
@@ -87,7 +90,8 @@ class InstaGuardAccessibilityService : AccessibilityService() {
             foregroundCountedSinceReconcileMs += tickDeltaMs
         }
 
-        if (nowEpochMs - lastReconcileEpochMs >= RECONCILE_INTERVAL_MS) {
+        val reconcileInterval = if (instagramForeground) ACTIVE_RECONCILE_INTERVAL_MS else IDLE_RECONCILE_INTERVAL_MS
+        if (nowEpochMs - lastReconcileEpochMs >= reconcileInterval) {
             val observedForegroundMs = usageStatsReader.queryForegroundMs(
                 startEpochMs = lastReconcileEpochMs,
                 endEpochMs = nowEpochMs,
@@ -110,7 +114,10 @@ class InstaGuardAccessibilityService : AccessibilityService() {
 
         if (shouldBlockNow) {
             enforceBlock()
+            return BLOCKED_TICK_MS
         }
+
+        return if (instagramForeground) ACTIVE_TICK_MS else IDLE_TICK_MS
     }
 
     private fun enforceBlock() {
@@ -126,8 +133,11 @@ class InstaGuardAccessibilityService : AccessibilityService() {
 
     companion object {
         const val INSTAGRAM_PACKAGE = "com.instagram.android"
-        private const val TICK_MS = 1_000L
-        private const val RECONCILE_INTERVAL_MS = 60_000L
+        private const val ACTIVE_TICK_MS = 1_000L
+        private const val IDLE_TICK_MS = 5_000L
+        private const val BLOCKED_TICK_MS = 2_000L
+        private const val ACTIVE_RECONCILE_INTERVAL_MS = 30_000L
+        private const val IDLE_RECONCILE_INTERVAL_MS = 60_000L
         private const val FOREGROUND_FALLBACK_WINDOW_MS = 3_000L
     }
 }
