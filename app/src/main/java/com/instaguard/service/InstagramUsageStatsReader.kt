@@ -18,6 +18,15 @@ class InstagramUsageStatsReader(context: Context) {
         }
     }
 
+    fun isAppCurrentlyForeground(nowEpochMs: Long, targetPackage: String): Boolean {
+        val lookbackStart = maxOf(0L, nowEpochMs - CURRENT_STATE_LOOKBACK_MS)
+        return try {
+            isAppCurrentlyForegroundUnsafe(lookbackStart, nowEpochMs, targetPackage)
+        } catch (_: SecurityException) {
+            false
+        }
+    }
+
     private fun queryForegroundMsUnsafe(startEpochMs: Long, endEpochMs: Long, targetPackage: String): Long {
         val queryStart = maxOf(0L, startEpochMs - LOOKBACK_MS)
         val events = usageStatsManager.queryEvents(queryStart, endEpochMs)
@@ -56,6 +65,28 @@ class InstagramUsageStatsReader(context: Context) {
         return totalForegroundMs
     }
 
+    private fun isAppCurrentlyForegroundUnsafe(
+        startEpochMs: Long,
+        endEpochMs: Long,
+        targetPackage: String
+    ): Boolean {
+        val events = usageStatsManager.queryEvents(startEpochMs, endEpochMs)
+        val event = UsageEvents.Event()
+        var isForeground = false
+
+        while (events.hasNextEvent()) {
+            events.getNextEvent(event)
+            if (event.packageName != targetPackage) {
+                continue
+            }
+            when {
+                isForegroundEvent(event.eventType) -> isForeground = true
+                isBackgroundEvent(event.eventType) -> isForeground = false
+            }
+        }
+        return isForeground
+    }
+
     private fun isForegroundEvent(eventType: Int): Boolean {
         return eventType == UsageEvents.Event.ACTIVITY_RESUMED ||
             eventType == UsageEvents.Event.MOVE_TO_FOREGROUND
@@ -74,5 +105,6 @@ class InstagramUsageStatsReader(context: Context) {
 
     private companion object {
         const val LOOKBACK_MS = 30 * 60 * 1000L
+        const val CURRENT_STATE_LOOKBACK_MS = 30_000L
     }
 }

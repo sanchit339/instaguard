@@ -62,7 +62,17 @@ class InstaGuardAccessibilityService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         val pkg = event?.packageName?.toString() ?: return
         instagramForeground = pkg == INSTAGRAM_PACKAGE
-        if (!instagramForeground) {
+
+        if (instagramForeground) {
+            handler.removeCallbacks(tickRunnable)
+            handler.post(tickRunnable)
+            scope.launch {
+                val snapshot = repository.refresh(System.currentTimeMillis())
+                if (snapshot.balanceMs <= 0L) {
+                    enforceBlock()
+                }
+            }
+        } else {
             blockerVisible = false
         }
     }
@@ -105,11 +115,10 @@ class InstaGuardAccessibilityService : AccessibilityService() {
             foregroundCountedSinceReconcileMs = 0L
         }
 
-        val usageSaysInstagramActive = usageStatsReader.queryForegroundMs(
-            startEpochMs = max(0L, nowEpochMs - FOREGROUND_FALLBACK_WINDOW_MS),
-            endEpochMs = nowEpochMs,
+        val usageSaysInstagramActive = usageStatsReader.isAppCurrentlyForeground(
+            nowEpochMs = nowEpochMs,
             targetPackage = INSTAGRAM_PACKAGE
-        ) > 0L
+        )
         val shouldBlockNow = snapshot.balanceMs <= 0L && (instagramForeground || usageSaysInstagramActive)
 
         if (shouldBlockNow) {
@@ -138,6 +147,5 @@ class InstaGuardAccessibilityService : AccessibilityService() {
         private const val BLOCKED_TICK_MS = 2_000L
         private const val ACTIVE_RECONCILE_INTERVAL_MS = 30_000L
         private const val IDLE_RECONCILE_INTERVAL_MS = 60_000L
-        private const val FOREGROUND_FALLBACK_WINDOW_MS = 3_000L
     }
 }
