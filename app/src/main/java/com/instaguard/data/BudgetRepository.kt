@@ -9,10 +9,22 @@ class BudgetRepository(context: Context) {
     private val store = BudgetStore(context.applicationContext)
     private val lock = Mutex()
 
-    suspend fun tick(isConsuming: Boolean, nowEpochMs: Long = System.currentTimeMillis()): BudgetSnapshot {
+    suspend fun refresh(nowEpochMs: Long = System.currentTimeMillis()): BudgetSnapshot {
         return lock.withLock {
             val current = store.readOnce()
-            val next = BudgetEngine.advance(current, nowEpochMs, isConsuming)
+            val rolled = BudgetEngine.rollForward(current, nowEpochMs)
+            if (rolled != current) {
+                store.write(rolled)
+            }
+            rolled
+        }
+    }
+
+    suspend fun consume(consumedMs: Long, nowEpochMs: Long = System.currentTimeMillis()): BudgetSnapshot {
+        return lock.withLock {
+            val current = store.readOnce()
+            val rolled = BudgetEngine.rollForward(current, nowEpochMs)
+            val next = BudgetEngine.consume(rolled, consumedMs, nowEpochMs)
             store.write(next)
             next
         }

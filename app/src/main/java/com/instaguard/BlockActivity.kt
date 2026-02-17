@@ -42,7 +42,7 @@ class BlockActivity : ComponentActivity() {
     private val pollRunnable = object : Runnable {
         override fun run() {
             scope.launch {
-                val snapshot = repository.tick(isConsuming = false)
+                val snapshot = repository.refresh()
                 if (snapshot.balanceMs > 0L) {
                     finish()
                 }
@@ -81,15 +81,15 @@ class BlockActivity : ComponentActivity() {
                         style = MaterialTheme.typography.headlineMedium
                     )
                     Text(
-                        text = "Your hourly budget is exhausted.",
+                        text = "This hour's quota is exhausted.",
                         modifier = Modifier.padding(top = 12.dp)
                     )
                     Text(
-                        text = "Current budget: ${balanceMs / 1000}s",
+                        text = "Current remaining budget: ${balanceMs / 1000}s",
                         modifier = Modifier.padding(top = 4.dp)
                     )
                     Text(
-                        text = "New budget accrues over time. One extra second appears every 12s.",
+                        text = "Next hour gets 5 minutes plus max 1 minute carry from previous hour.",
                         modifier = Modifier.padding(top = 8.dp)
                     )
                     Button(

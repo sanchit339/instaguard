@@ -7,77 +7,75 @@ import kotlin.math.max
 import kotlin.math.min
 
 object BudgetEngine {
-    private const val BUDGET_PER_HOUR_MS = 5 * 60 * 1000L
+    const val BASE_HOURLY_BUDGET_MS = 5 * 60 * 1000L
+    const val MAX_CARRY_MS = 60 * 1000L
     private const val HOUR_MS = 60 * 60 * 1000L
 
-    fun advance(
+    fun createInitialSnapshot(nowEpochMs: Long, zoneId: ZoneId = ZoneId.systemDefault()): BudgetSnapshot {
+        val hourStart = startOfHour(nowEpochMs, zoneId)
+        val quiet = isQuietHour(hourStart, zoneId)
+        val allowance = if (quiet) 0L else BASE_HOURLY_BUDGET_MS
+        return BudgetSnapshot(
+            balanceMs = allowance,
+            lastUpdatedEpochMs = nowEpochMs,
+            currentHourStartEpochMs = hourStart,
+            hourAllowanceMs = allowance
+        )
+    }
+
+    fun rollForward(
         snapshot: BudgetSnapshot,
         nowEpochMs: Long,
-        isConsuming: Boolean,
         zoneId: ZoneId = ZoneId.systemDefault()
     ): BudgetSnapshot {
         if (nowEpochMs <= snapshot.lastUpdatedEpochMs) {
             return snapshot
         }
 
-        val elapsedMs = nowEpochMs - snapshot.lastUpdatedEpochMs
-        val accrualEligibleMs = calculateAccrualEligibleMs(
-            startEpochMs = snapshot.lastUpdatedEpochMs,
-            endEpochMs = nowEpochMs,
-            zoneId = zoneId
-        )
-        val earnedMs = (accrualEligibleMs * BUDGET_PER_HOUR_MS) / HOUR_MS
+        var current = snapshot
+        while (nowEpochMs >= current.currentHourStartEpochMs + HOUR_MS) {
+            val hourStart = current.currentHourStartEpochMs
+            val hourIsQuiet = isQuietHour(hourStart, zoneId)
+            val carryToNext = if (hourIsQuiet) 0L else min(current.balanceMs, MAX_CARRY_MS)
 
-        val adjusted = if (isConsuming) {
-            snapshot.balanceMs + earnedMs - elapsedMs
-        } else {
-            snapshot.balanceMs + earnedMs
+            val nextHourStart = hourStart + HOUR_MS
+            val nextIsQuiet = isQuietHour(nextHourStart, zoneId)
+            val nextAllowance = if (nextIsQuiet) 0L else BASE_HOURLY_BUDGET_MS + carryToNext
+            val nextBalance = if (nextIsQuiet) 0L else nextAllowance
+
+            current = current.copy(
+                balanceMs = nextBalance,
+                lastUpdatedEpochMs = nextHourStart,
+                currentHourStartEpochMs = nextHourStart,
+                hourAllowanceMs = nextAllowance
+            )
         }
 
-        return BudgetSnapshot(
-            balanceMs = max(0L, adjusted),
+        return current.copy(lastUpdatedEpochMs = nowEpochMs)
+    }
+
+    fun consume(snapshot: BudgetSnapshot, consumedMs: Long, nowEpochMs: Long): BudgetSnapshot {
+        if (consumedMs <= 0L) {
+            return snapshot.copy(lastUpdatedEpochMs = nowEpochMs)
+        }
+        return snapshot.copy(
+            balanceMs = max(0L, snapshot.balanceMs - consumedMs),
             lastUpdatedEpochMs = nowEpochMs
         )
     }
 
-    fun millisToNextSecondOfBudget(snapshot: BudgetSnapshot): Long {
-        return if (snapshot.balanceMs > 0L) 0L else 12_000L
+    private fun startOfHour(epochMs: Long, zoneId: ZoneId): Long {
+        val zoned = Instant.ofEpochMilli(epochMs).atZone(zoneId)
+        return zoned
+            .withMinute(0)
+            .withSecond(0)
+            .withNano(0)
+            .toInstant()
+            .toEpochMilli()
     }
 
-    private fun calculateAccrualEligibleMs(
-        startEpochMs: Long,
-        endEpochMs: Long,
-        zoneId: ZoneId
-    ): Long {
-        var cursor = startEpochMs
-        var eligibleMs = 0L
-
-        while (cursor < endEpochMs) {
-            val currentZoned = Instant.ofEpochMilli(cursor).atZone(zoneId)
-            val date = currentZoned.toLocalDate()
-            val nextDayStartMs = date.plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli()
-            val segmentEnd = min(endEpochMs, nextDayStartMs)
-            val segmentDuration = segmentEnd - cursor
-
-            val quietStartMs = date.atTime(2, 0).atZone(zoneId).toInstant().toEpochMilli()
-            val quietEndMs = date.atTime(8, 0).atZone(zoneId).toInstant().toEpochMilli()
-            val quietOverlap = overlapMs(
-                aStart = cursor,
-                aEnd = segmentEnd,
-                bStart = quietStartMs,
-                bEnd = quietEndMs
-            )
-
-            eligibleMs += max(0L, segmentDuration - quietOverlap)
-            cursor = segmentEnd
-        }
-
-        return eligibleMs
-    }
-
-    private fun overlapMs(aStart: Long, aEnd: Long, bStart: Long, bEnd: Long): Long {
-        val start = max(aStart, bStart)
-        val end = min(aEnd, bEnd)
-        return max(0L, end - start)
+    private fun isQuietHour(hourStartEpochMs: Long, zoneId: ZoneId): Boolean {
+        val localHour = Instant.ofEpochMilli(hourStartEpochMs).atZone(zoneId).hour
+        return localHour in 2..7
     }
 }
