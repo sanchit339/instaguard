@@ -32,6 +32,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -39,10 +40,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.instaguard.data.BudgetRepository
 import com.instaguard.ui.theme.InstaGuardTheme
+import com.instaguard.update.ApkUpdateInstaller
 import com.instaguard.update.GitHubUpdateChecker
 import com.instaguard.update.UpdateInfo
 import com.instaguard.update.UpdateNotifier
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -60,6 +63,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun AppHome() {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val repository = remember { BudgetRepository(context.applicationContext) }
     val appVersion = remember { getAppVersionName(context) }
 
@@ -70,6 +74,7 @@ private fun AppHome() {
     var notificationsEnabled by remember { mutableStateOf(UpdateNotifier.canPostNotifications(context)) }
 
     var isCheckingUpdates by remember { mutableStateOf(true) }
+    var isInstallingUpdate by remember { mutableStateOf(false) }
     var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
     var updateError by remember { mutableStateOf<String?>(null) }
 
@@ -189,13 +194,41 @@ private fun AppHome() {
                     updateError != null -> Text(updateError!!, color = MaterialTheme.colorScheme.tertiary)
                     updateInfo?.isUpdateAvailable == true -> {
                         Text("New version ${updateInfo?.latestTag} is available.")
+                        if (isInstallingUpdate) {
+                            CircularProgressIndicator()
+                        }
                         Button(onClick = {
-                            val releaseUrl = updateInfo?.releaseUrl.orEmpty()
-                            if (releaseUrl.isNotBlank()) {
-                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(releaseUrl)))
+                            val apkUrl = updateInfo?.apkDownloadUrl.orEmpty()
+                            val tag = updateInfo?.latestTag.orEmpty()
+                            if (apkUrl.isBlank() || tag.isBlank()) {
+                                updateError = "Release APK asset not found."
+                                return@Button
+                            }
+
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+                                !context.packageManager.canRequestPackageInstalls()
+                            ) {
+                                context.startActivity(
+                                    Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
+                                        data = Uri.parse("package:${context.packageName}")
+                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    }
+                                )
+                                updateError = "Allow install unknown apps for InstaGuard, then tap Update Now again."
+                                return@Button
+                            }
+
+                            isInstallingUpdate = true
+                            updateError = null
+                            scope.launch {
+                                ApkUpdateInstaller.downloadAndInstall(context, apkUrl, tag)
+                                    .onFailure { error ->
+                                        updateError = error.message ?: "Failed to download/install update."
+                                    }
+                                isInstallingUpdate = false
                             }
                         }) {
-                            Text("Update Now")
+                            Text("Update In App")
                         }
                     }
                     else -> Text("You are on the latest version ($appVersion).")

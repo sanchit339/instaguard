@@ -7,6 +7,11 @@ android {
     namespace = "com.instaguard"
     compileSdk = 34
 
+    val releaseStoreFile = System.getenv("RELEASE_STORE_FILE")
+    val releaseStorePassword = System.getenv("RELEASE_STORE_PASSWORD")
+    val releaseKeyAlias = System.getenv("RELEASE_KEY_ALIAS")
+    val releaseKeyPassword = System.getenv("RELEASE_KEY_PASSWORD")
+
     defaultConfig {
         applicationId = "com.instaguard"
         minSdk = 28
@@ -19,6 +24,19 @@ android {
 
     buildTypes {
         release {
+            if (
+                !releaseStoreFile.isNullOrBlank() &&
+                !releaseStorePassword.isNullOrBlank() &&
+                !releaseKeyAlias.isNullOrBlank() &&
+                !releaseKeyPassword.isNullOrBlank()
+            ) {
+                signingConfig = signingConfigs.create("release") {
+                    storeFile = file(releaseStoreFile)
+                    storePassword = releaseStorePassword
+                    keyAlias = releaseKeyAlias
+                    keyPassword = releaseKeyPassword
+                }
+            }
             isMinifyEnabled = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
