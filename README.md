@@ -84,8 +84,15 @@ This repo includes GitHub Actions workflows:
 
 - `android-release.yml`
   - Triggers on tags matching `v*` (example: `v0.3.0`)
-  - Builds release APK
-  - Publishes a GitHub Release with attached unsigned APK
+  - Builds signed release APK
+  - Publishes a GitHub Release with attached installable APK (`app-release.apk`)
+
+## Update delivery
+
+- In-app update downloads the APK directly and opens Android installer.
+- It does not redirect users to GitHub UI.
+- You only need one signed APK per release tag.
+- Separate patch files are not required for this setup.
 
 ## Version management
 
