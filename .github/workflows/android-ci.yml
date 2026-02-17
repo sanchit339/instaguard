@@ -3,7 +3,11 @@ name: Android CI
 on:
   push:
     branches: ["**"]
+    paths-ignore:
+      - "README.md"
   pull_request:
+    paths-ignore:
+      - "README.md"
 
 permissions:
   contents: read
