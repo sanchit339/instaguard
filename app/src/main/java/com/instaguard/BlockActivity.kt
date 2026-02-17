@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.LaunchedEffect
@@ -78,19 +79,23 @@ class BlockActivity : ComponentActivity() {
                 ) {
                     Text(
                         text = "Instagram locked",
-                        style = MaterialTheme.typography.headlineMedium
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = MaterialTheme.colorScheme.onBackground
                     )
                     Text(
                         text = "This hour's quota is exhausted.",
-                        modifier = Modifier.padding(top = 12.dp)
+                        modifier = Modifier.padding(top = 12.dp),
+                        color = MaterialTheme.colorScheme.onBackground
                     )
                     Text(
                         text = "Current remaining budget: ${balanceMs / 1000}s",
-                        modifier = Modifier.padding(top = 4.dp)
+                        modifier = Modifier.padding(top = 4.dp),
+                        color = MaterialTheme.colorScheme.onBackground
                     )
                     Text(
                         text = "Next hour gets 5 minutes plus max 1 minute carry from previous hour.",
-                        modifier = Modifier.padding(top = 8.dp)
+                        modifier = Modifier.padding(top = 8.dp),
+                        color = MaterialTheme.colorScheme.onBackground
                     )
                     Button(
                         onClick = {
@@ -100,6 +105,10 @@ class BlockActivity : ComponentActivity() {
                                 }
                             )
                         },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        ),
                         modifier = Modifier.padding(top = 24.dp)
                     ) {
                         Text("Uninstall InstaGuard")
