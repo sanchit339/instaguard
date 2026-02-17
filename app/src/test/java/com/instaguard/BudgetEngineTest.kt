@@ -10,73 +10,75 @@ class BudgetEngineTest {
     private val utc: ZoneId = ZoneId.of("UTC")
 
     @Test
-    fun accrue_whenNotUsing() {
-        val start = BudgetSnapshot(
-            balanceMs = 0,
-            lastUpdatedEpochMs = 1_000L
-        )
-
-        val afterHour = BudgetEngine.advance(
-            start,
-            nowEpochMs = 3_601_000L,
-            isConsuming = false,
-            zoneId = utc
-        )
-        assertEquals(300_000L, afterHour.balanceMs)
+    fun initialBudget_isFiveMinutesOutsideQuietHours() {
+        // 2026-01-01T10:10:00Z
+        val snapshot = BudgetEngine.createInitialSnapshot(1_767_615_000_000L, utc)
+        assertEquals(300_000L, snapshot.balanceMs)
+        assertEquals(300_000L, snapshot.hourAllowanceMs)
     }
 
     @Test
-    fun consume_whenUsing() {
+    fun initialBudget_isZeroInsideQuietHours() {
+        // 2026-01-01T03:10:00Z
+        val snapshot = BudgetEngine.createInitialSnapshot(1_767_589_800_000L, utc)
+        assertEquals(0L, snapshot.balanceMs)
+        assertEquals(0L, snapshot.hourAllowanceMs)
+    }
+
+    @Test
+    fun nextHour_appliesMaxOneMinuteCarry() {
+        val start = BudgetSnapshot(
+            balanceMs = 220_000L,
+            hourAllowanceMs = 300_000L,
+            // 2026-01-01T10:00:00Z
+            currentHourStartEpochMs = 1_767_614_400_000L,
+            // 2026-01-01T10:59:59Z
+            lastUpdatedEpochMs = 1_767_617_999_000L
+        )
+
+        val rolled = BudgetEngine.rollForward(
+            snapshot = start,
+            // 2026-01-01T11:00:00Z
+            nowEpochMs = 1_767_618_000_000L,
+            zoneId = utc
+        )
+
+        assertEquals(360_000L, rolled.hourAllowanceMs)
+        assertEquals(360_000L, rolled.balanceMs)
+    }
+
+    @Test
+    fun quietHour_hasNoRefillAndNoCarry() {
+        val start = BudgetSnapshot(
+            balanceMs = 100_000L,
+            hourAllowanceMs = 300_000L,
+            // 2026-01-01T01:00:00Z
+            currentHourStartEpochMs = 1_767_582_800_000L,
+            // 2026-01-01T01:59:59Z
+            lastUpdatedEpochMs = 1_767_586_399_000L
+        )
+
+        val rolled = BudgetEngine.rollForward(
+            snapshot = start,
+            // 2026-01-01T02:00:00Z
+            nowEpochMs = 1_767_586_400_000L,
+            zoneId = utc
+        )
+
+        assertEquals(0L, rolled.hourAllowanceMs)
+        assertEquals(0L, rolled.balanceMs)
+    }
+
+    @Test
+    fun consume_deductsFromBalance() {
         val start = BudgetSnapshot(
             balanceMs = 300_000L,
-            lastUpdatedEpochMs = 10_000L
+            hourAllowanceMs = 300_000L,
+            currentHourStartEpochMs = 1_767_614_400_000L,
+            lastUpdatedEpochMs = 1_767_614_400_000L
         )
 
-        val afterMinute = BudgetEngine.advance(
-            start,
-            nowEpochMs = 70_000L,
-            isConsuming = true,
-            zoneId = utc
-        )
-        assertEquals(245_000L, afterMinute.balanceMs)
-    }
-
-    @Test
-    fun noAccrual_duringQuietHours() {
-        val start = BudgetSnapshot(
-            balanceMs = 0L,
-            // 2026-01-01T02:00:00Z
-            lastUpdatedEpochMs = 1_767_232_800_000L
-        )
-
-        val result = BudgetEngine.advance(
-            snapshot = start,
-            // 2026-01-01T08:00:00Z
-            nowEpochMs = 1_767_254_400_000L,
-            isConsuming = false,
-            zoneId = utc
-        )
-
-        assertEquals(0L, result.balanceMs)
-    }
-
-    @Test
-    fun accrual_onlyOutsideQuietHours_whenCrossingBoundary() {
-        val start = BudgetSnapshot(
-            balanceMs = 0L,
-            // 2026-01-01T01:00:00Z
-            lastUpdatedEpochMs = 1_767_229_200_000L
-        )
-
-        val result = BudgetEngine.advance(
-            snapshot = start,
-            // 2026-01-01T03:00:00Z
-            nowEpochMs = 1_767_236_400_000L,
-            isConsuming = false,
-            zoneId = utc
-        )
-
-        // Only 01:00-02:00 accrues; 02:00-03:00 is quiet time.
-        assertEquals(300_000L, result.balanceMs)
+        val next = BudgetEngine.consume(start, consumedMs = 54_000L, nowEpochMs = 1_767_614_454_000L)
+        assertEquals(246_000L, next.balanceMs)
     }
 }

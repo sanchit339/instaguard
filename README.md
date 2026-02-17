@@ -6,6 +6,8 @@
 
 InstaGuard is an Android app that limits Instagram usage with a strict time budget and automatic carry-forward.
 
+Current version: `v0.2.0`
+
 ## Why this exists
 
 Short social media checks can easily turn into long sessions. InstaGuard enforces a measurable rule:
@@ -81,15 +83,29 @@ This repo includes GitHub Actions workflows:
   - Uploads debug APK as artifact
 
 - `android-release.yml`
-  - Triggers on tags matching `v*` (example: `v1.0.0`)
+  - Triggers on tags matching `v*` (example: `v0.2.0`)
   - Builds release APK
   - Publishes a GitHub Release with attached unsigned APK
+
+## Version management
+
+Version is centralized in `gradle.properties`:
+
+- `VERSION_NAME`
+- `VERSION_CODE`
+
+Bump automatically with:
+
+```bash
+./scripts/bump_version.sh patch
+# or: minor / major
+```
 
 ## Publishing a release
 
 ```bash
-git tag v1.0.0
-git push origin v1.0.0
+git tag v0.2.0
+git push origin v0.2.0
 ```
 
 After push, GitHub Actions creates a release and attaches:
